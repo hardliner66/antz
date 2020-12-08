@@ -2,6 +2,8 @@
 
 A small game inspired by `AntMe!` where you control an ant colony through scripting in order to get more points.
 
+The game is written in Rust and uses `ggez` as game engine.
+
 # WIP
 
 Currently the project is work in progress and not in a usable state.
