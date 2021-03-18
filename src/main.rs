@@ -32,8 +32,10 @@ impl event::EventHandler for GameState {
             self.tick += 1;
 
             if self.tick % 100 == 0 {
-                self.world
-                    .spawn((Ant::new(&self.config), Position::new(self.spawn.x, self.spawn.y)));
+                self.world.spawn((
+                    Ant::new(&self.config),
+                    Position::new(self.spawn.x, self.spawn.y),
+                ));
             }
 
             if self.tick % 1000 == 0 {
@@ -78,7 +80,9 @@ impl event::EventHandler for GameState {
                 }
             }
 
-            to_delete.iter().for_each(|id| self.world.despawn(*id).unwrap());
+            to_delete
+                .iter()
+                .for_each(|id| self.world.despawn(*id).unwrap());
         }
 
         Ok(())

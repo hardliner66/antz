@@ -13,7 +13,7 @@ impl Ant {
             steps: 0,
             energy: conf.general.base_energy,
         }
-	}
+    }
 
     pub fn turn(&mut self, angle: f32) {
         self.angle = ((self.angle.to_degrees() + angle).rem_euclid(360.0)).to_radians();
