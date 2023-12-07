@@ -11,10 +11,17 @@ use common::*;
 use components::*;
 use game_state::GameState;
 
+use extism::*;
 use notan::draw::*;
 use notan::prelude::*;
 
 fn setup(_gfx: &mut Graphics) -> GameState {
+    // let url =
+    //     Wasm::url("https://github.com/extism/plugins/releases/latest/download/count_vowels.wasm");
+    // let manifest = Manifest::new([url]);
+    // let mut plugin = extism::Plugin::new(&manifest, [], true).unwrap();
+    // let res = plugin.call::<&str, &str>("count_vowels", "Hello, world!").unwrap();
+    // println!("{}", res);
     GameState::new()
 }
 
