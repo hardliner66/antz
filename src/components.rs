@@ -1,4 +1,6 @@
-use crate::{common::*, config::Config};
+use crate::config::Config;
+
+use notan::math::{vec2, Vec2};
 
 pub struct Ant {
     pub angle: f32,
@@ -28,10 +30,10 @@ pub struct Apple;
 
 pub struct Sugar;
 
-pub struct Position(pub Point2);
+pub struct Position(pub Vec2);
 
 impl Position {
     pub fn new(x: f32, y: f32) -> Self {
-        Position(Point2::new(x, y))
+        Position(vec2(x, y))
     }
 }

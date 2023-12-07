@@ -2,7 +2,7 @@
 name = "antz"
 version = "0.1.0"
 authors = ["hardliner66 <hardliner66@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,8 +10,10 @@ edition = "2018"
 opt-level = 2
 
 [dependencies]
-ggez = "0.5.1"
-hecs = "0.3.1"
-rand = "0.7.3"
+anyhow = "1.0.75"
+extism = "0.5.5"
+hecs = "0.10.4"
+notan = { version = "0.11.0", features = ["notan_egui", "egui", "serde", "drop_files"] }
+rand = "0.8.5"
 serde = { version="1.0.0", features=["derive"] }
-toml = "0.5.7"
+toml = "0.8.8"

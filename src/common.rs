@@ -1,9 +1,4 @@
-pub use ggez::nalgebra as na;
-pub use ggez::{Context, GameResult};
 pub use hecs::*;
-
-pub type Point2 = na::Point2<f32>;
-// pub type Vector2 = na::Vector2<f32>;
 
 use std::ops::{Add, Div, Mul, Sub};
 
@@ -14,7 +9,7 @@ pub const WIDTH: f32 = 1280.0;
 // pub const MIDDLE_X: f32 = WIDTH / 2.0;
 pub const HEIGHT: f32 = 720.0;
 // pub const MIDDLE_Y: f32 = HEIGHT / 2.0;
-pub const DESIRED_FPS: u32 = 60;
+// pub const DESIRED_FPS: u32 = 60;
 pub const STEP_SIZE: f32 = 2.0;
 
 #[inline(always)]

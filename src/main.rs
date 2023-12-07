@@ -1,15 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{env, path};
-
-use ggez::graphics;
-use ggez::nalgebra as na;
-use ggez::{
-    self,
-    conf::{WindowMode, WindowSetup},
-    timer,
-};
-use ggez::{event, nalgebra::clamp};
+//use std::{env, path};
 
 mod common;
 mod components;
@@ -20,171 +11,128 @@ use common::*;
 use components::*;
 use game_state::GameState;
 
+use notan::draw::*;
+use notan::prelude::*;
+
+fn setup(_gfx: &mut Graphics) -> GameState {
+    GameState::new()
+}
+
 fn update_ant(ant: &mut Ant) {
     let mut rng = rand::thread_rng();
-    ant.turn(rng.gen_range(0.0, 360.0));
-    ant.do_move(rng.gen_range(5, 100));
+    ant.turn(rng.gen_range(0.0..360.0));
+    ant.do_move(rng.gen_range(5..100));
 }
 
-impl event::EventHandler for GameState {
-    fn update(&mut self, ctx: &mut ggez::Context) -> ggez::GameResult {
-        while timer::check_update_time(ctx, DESIRED_FPS) {
-            self.tick += 1;
+fn update(app: &mut App, state: &mut GameState) {
+    state.tick += 1;
 
-            if self.tick % 100 == 0 {
-                self.world.spawn((
-                    Ant::new(&self.config),
-                    Position::new(self.spawn.x, self.spawn.y),
-                ));
-            }
-
-            if self.tick % 1000 == 0 {
-                let apple_x: f32 = self.rng.gen_range(0.0, WIDTH);
-                let apple_y: f32 = self.rng.gen_range(0.0, HEIGHT);
-
-                self.world.spawn((Apple, Position::new(apple_x, apple_y)));
-            }
-
-            for (_id, ant) in &mut self.world.query::<&mut Ant>() {
-                if ant.steps == 0 {
-                    update_ant(ant);
-                }
-            }
-
-            for (_id, (ant, pos)) in &mut self.world.query::<(&mut Ant, &mut Position)>() {
-                if ant.steps > 0 {
-                    let x = STEP_SIZE * ant.angle.cos();
-                    let y = STEP_SIZE * ant.angle.sin();
-                    pos.0.x += x;
-                    pos.0.y += y;
-                    ant.steps -= 1;
-
-                    if pos.0.x < 0.0 || pos.0.x > WIDTH {
-                        pos.0.x = clamp(pos.0.x, 0.0, WIDTH);
-                        ant.angle = 180.0_f32.to_radians() - ant.angle;
-                    }
-
-                    if pos.0.y < 0.0 || pos.0.y > HEIGHT {
-                        pos.0.y = clamp(pos.0.y, 0.0, HEIGHT);
-                        ant.angle = 360.0_f32.to_radians() - ant.angle;
-                    }
-                }
-            }
-
-            let mut to_delete = Vec::new();
-            for (id, ant) in &mut self.world.query::<&mut Ant>() {
-                if ant.energy > 0 {
-                    ant.energy -= 1;
-                } else {
-                    to_delete.push(id);
-                }
-            }
-
-            to_delete
-                .iter()
-                .for_each(|id| self.world.despawn(*id).unwrap());
-        }
-
-        Ok(())
+    if state.tick % 100 == 0 {
+        state.world.spawn((
+            Ant::new(&state.config),
+            Position::new(state.spawn.x, state.spawn.y),
+        ));
     }
 
-    fn draw(&mut self, ctx: &mut ggez::Context) -> ggez::GameResult {
-        graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
+    if state.tick % 1000 == 0 {
+        let apple_x: f32 = state.rng.gen_range(0.0..WIDTH);
+        let apple_y: f32 = state.rng.gen_range(0.0..HEIGHT);
 
-        let circle = graphics::Mesh::new_circle(
-            ctx,
-            graphics::DrawMode::fill(),
-            na::Point2::new(0.0, 0.0),
-            20.0,
-            0.1,
-            graphics::BLACK,
-        )?;
-        graphics::draw(ctx, &circle, (Point2::new(self.spawn.x, self.spawn.y),))?;
+        state.world.spawn((Apple, Position::new(apple_x, apple_y)));
+    }
 
-        for (_id, (_, pos)) in &mut self.world.query::<(&Sugar, &Position)>() {
-            let circle = graphics::Mesh::new_circle(
-                ctx,
-                graphics::DrawMode::fill(),
-                na::Point2::new(0.0, 0.0),
-                10.0,
-                1.0,
-                graphics::WHITE,
-            )?;
-            graphics::draw(ctx, &circle, (Point2::new(pos.0.x, pos.0.y),))?;
+    for (_id, ant) in &mut state.world.query::<&mut Ant>() {
+        if ant.steps == 0 {
+            update_ant(ant);
         }
+    }
 
-        for (_id, (_, pos)) in &mut self.world.query::<(&Apple, &Position)>() {
-            let circle = graphics::Mesh::new_circle(
-                ctx,
-                graphics::DrawMode::fill(),
-                na::Point2::new(0.0, 0.0),
-                5.0,
-                1.0,
-                graphics::Color::from_rgb(112, 212, 0),
-            )?;
-            graphics::draw(ctx, &circle, (Point2::new(pos.0.x, pos.0.y),))?;
+    for (_id, (ant, pos)) in &mut state.world.query::<(&mut Ant, &mut Position)>() {
+        if ant.steps > 0 {
+            let x = STEP_SIZE * ant.angle.cos();
+            let y = STEP_SIZE * ant.angle.sin();
+            pos.0.x += x;
+            pos.0.y += y;
+            ant.steps -= 1;
+
+            if pos.0.x < 0.0 || pos.0.x > WIDTH {
+                pos.0.x = pos.0.x.clamp(0.0, WIDTH);
+                ant.angle = 180.0_f32.to_radians() - ant.angle;
+            }
+
+            if pos.0.y < 0.0 || pos.0.y > HEIGHT {
+                pos.0.y = pos.0.y.clamp(0.0, HEIGHT);
+                ant.angle = 360.0_f32.to_radians() - ant.angle;
+            }
         }
+    }
 
-        for (_id, (ant, pos)) in &mut self.world.query::<(&Ant, &Position)>() {
-            // let mesh = graphics::Mesh::new_circle(
-            //     ctx,
-            //     graphics::DrawMode::fill(),
-            //     na::Point2::new(0.0, 0.0),
-            //     2.0,
-            //     1.0,
-            //     graphics::Color::from_rgb(142, 178, 179),
-            // )?;
-            let mesh = graphics::Mesh::new_ellipse(
-                ctx,
-                graphics::DrawMode::fill(),
-                na::Point2::new(0.0, 0.0),
-                4.0,
-                1.5,
-                1.0,
-                graphics::WHITE,
-            )?;
-            graphics::draw(
-                ctx,
-                &mesh,
-                (
-                    Point2::new(pos.0.x, pos.0.y),
-                    ant.angle,
-                    graphics::Color::from_rgb(142, 178, 179),
-                ),
-            )?;
+    let mut to_delete = Vec::new();
+    for (id, ant) in &mut state.world.query::<&mut Ant>() {
+        if ant.energy > 0 {
+            ant.energy -= 1;
+        } else {
+            to_delete.push(id);
         }
+    }
 
-        if self.tick % 50 == 0 {
-            graphics::set_window_title(ctx, &format!("{:.0} FPS", timer::fps(ctx)));
-        }
+    to_delete
+        .iter()
+        .for_each(|id| state.world.despawn(*id).unwrap());
 
-        graphics::present(ctx)?;
-        Ok(())
+    if state.tick % 50 == 0 {
+        let fps = app.timer.fps();
+        app.window().set_title(&format!("{:.0} FPS", fps))
     }
 }
 
-pub fn main() -> ggez::GameResult {
-    let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        let mut path = path::PathBuf::from(manifest_dir);
-        path.push("resources");
-        path
-    } else {
-        path::PathBuf::from("./resources")
-    };
+fn draw(gfx: &mut Graphics, state: &mut GameState) {
+    let mut draw = gfx.create_draw();
 
-    let cb = ggez::ContextBuilder::new("antz", "ggez")
-        .add_resource_path(resource_dir)
-        .window_mode(WindowMode {
-            width: WIDTH,
-            height: HEIGHT,
-            ..Default::default()
-        })
-        .window_setup(WindowSetup {
-            vsync: false,
-            ..Default::default()
-        });
-    let (ctx, event_loop) = &mut cb.build()?;
+    draw.clear([0.1, 0.2, 0.3, 1.0].into());
 
-    let state = &mut GameState::new()?;
-    ggez::event::run(ctx, event_loop, state)
+    draw.circle(20.0)
+        .position(state.spawn.x, state.spawn.y)
+        .fill_color(Color::BLACK)
+        .fill();
+
+    for (_id, (_, pos)) in &mut state.world.query::<(&Sugar, &Position)>() {
+        draw.circle(10.0)
+            .position(pos.0.x, pos.0.y)
+            .fill_color(Color::WHITE)
+            .fill();
+    }
+
+    for (_id, (_, pos)) in &mut state.world.query::<(&Apple, &Position)>() {
+        draw.circle(5.0)
+            .position(pos.0.x, pos.0.y)
+            .fill_color(Color::from_rgb(112.0, 212.0, 0.0))
+            .fill();
+    }
+
+    for (_id, (ant, pos)) in &mut state.world.query::<(&Ant, &Position)>() {
+        draw.ellipse((pos.0.x, pos.0.y), (4.0, 1.5))
+            .fill_color(Color::from_rgb(142.0, 178.0, 179.0))
+            .fill()
+            .rotate_degrees(ant.angle);
+    }
+
+    gfx.render(&draw);
+}
+
+#[notan_main]
+fn main() -> Result<(), String> {
+    // let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+    //     let mut path = path::PathBuf::from(manifest_dir);
+    //     path.push("resources");
+    //     path
+    // } else {
+    //     path::PathBuf::from("./resources")
+    // };
+
+    notan::init_with(setup)
+        .update(update)
+        .draw(draw)
+        .add_config(DrawConfig)
+        .build()
 }
