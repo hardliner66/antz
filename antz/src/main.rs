@@ -44,9 +44,9 @@ fn setup(_gfx: &mut Graphics) -> GameState {
     GameState::new(plugin, command_store.clone())
 }
 
-fn update_ant(state: &GameState, ant: &mut Ant) {
+fn ant_on_idle(state: &GameState, ant: &mut Ant) {
     let mut plugin = state.plugin.borrow_mut();
-    (*plugin).call::<(), ()>("update", ()).unwrap();
+    (*plugin).call::<(), ()>("on_idle", ()).unwrap();
     for command in state.user_data.get().unwrap().lock().unwrap().iter() {
         match command {
             Command::Move(value) => {
@@ -78,7 +78,7 @@ fn update(app: &mut App, state: &mut GameState) {
 
     for (_id, ant) in &mut state.world.query::<&mut Ant>() {
         if ant.steps == 0 {
-            update_ant(state, ant);
+            ant_on_idle(state, ant);
         }
     }
 

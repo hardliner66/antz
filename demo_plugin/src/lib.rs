@@ -8,7 +8,7 @@ extern "ExtismHost" {
 }
 
 #[plugin_fn]
-pub unsafe fn update() -> FnResult<()> {
+pub unsafe fn on_idle() -> FnResult<()> {
     let mut rng = rand::thread_rng();
     turn(rng.gen_range(0.0..360.0))?;
     move_forward(rng.gen_range(5..100))?;
