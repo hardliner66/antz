@@ -763,7 +763,6 @@ name = "demo_plugin"
 version = "0.1.0"
 dependencies = [
  "extism-pdk",
- "rand",
 ]
 
 [[package]]

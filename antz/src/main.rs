@@ -22,17 +22,27 @@ host_fn!(clear(user_data: Vec<Command>;) {
     Ok(())
 });
 
-host_fn!(rand() -> f32 {
-    Ok(random())
+host_fn!(rand(thread_rng: ThreadRng;) -> f32 {
+    let rng = thread_rng.get()?;
+    let mut rng = rng.lock().unwrap();
+    Ok(rng.gen())
 });
 
-host_fn!(rand_range(min: f32, max_exclusive: f32) -> f32 {
-    let mut rng = rand::thread_rng();
+host_fn!(rand_range(thread_rng: ThreadRng; min: f32, max_exclusive: f32) -> f32 {
+    let rng = thread_rng.get()?;
+    let mut rng = rng.lock().unwrap();
     Ok(rng.gen_range(min..max_exclusive))
 });
 
-host_fn!(rand_range_int(min: i32, max_exclusive: i32) -> f32 {
-    let mut rng = rand::thread_rng();
+host_fn!(rand_range_int(thread_rng: ThreadRng; min: i32, max_exclusive: i32) -> i32 {
+    let rng = thread_rng.get()?;
+    let mut rng = rng.lock().unwrap();
+    Ok(rng.gen_range(min..max_exclusive))
+});
+
+host_fn!(rand_range_uint(thread_rng: ThreadRng; min: u32, max_exclusive: u32) -> u32 {
+    let rng = thread_rng.get()?;
+    let mut rng = rng.lock().unwrap();
     Ok(rng.gen_range(min..max_exclusive))
 });
 
@@ -54,24 +64,26 @@ fn setup(_gfx: &mut Graphics) -> GameState {
     let url = Wasm::file("./target/wasm32-wasi/release/demo_plugin.wasm");
     let manifest = Manifest::new([url]);
     let command_store = UserData::new(Vec::new());
+    let rng = UserData::new(thread_rng());
     let plugin = extism::PluginBuilder::new(&manifest)
         .with_wasi(true)
         .with_function("clear", [], [], command_store.clone(), clear)
         .with_function("turn", [PTR], [], command_store.clone(), turn)
-        .with_function("rand", [], [PTR], UserData::default(), rand)
-        .with_function(
-            "rand_range",
-            [PTR, PTR],
-            [PTR],
-            UserData::default(),
-            rand_range,
-        )
+        .with_function("rand", [], [PTR], rng.clone(), rand)
+        .with_function("rand_range", [PTR, PTR], [PTR], rng.clone(), rand_range)
         .with_function(
             "rand_range_int",
             [PTR, PTR],
             [PTR],
-            UserData::default(),
+            rng.clone(),
             rand_range_int,
+        )
+        .with_function(
+            "rand_range_uint",
+            [PTR, PTR],
+            [PTR],
+            rng.clone(),
+            rand_range_uint,
         )
         .with_function(
             "move_forward",
@@ -98,6 +110,7 @@ fn update(app: &mut App, state: &mut GameState) {
         state.world.spawn((
             Ant::new(&state.config),
             Location::new(state.spawn.x, state.spawn.y),
+            CommandList::new(),
         ));
     }
 
@@ -118,9 +131,10 @@ fn update(app: &mut App, state: &mut GameState) {
         .world
         .query::<(&mut Ant, &mut Location, &mut Vec<Command>)>()
     {
-        match commands.last_mut() {
+        let done = match commands.last_mut() {
             Some(Command::Turn(angle)) => {
                 loc.angle = ((loc.angle.to_degrees() + *angle).rem_euclid(360.0)).to_radians();
+                true
             }
             Some(Command::Move(steps)) => {
                 if *steps > 0 {
@@ -139,11 +153,15 @@ fn update(app: &mut App, state: &mut GameState) {
                         loc.pos.y = loc.pos.y.clamp(0.0, HEIGHT);
                         loc.angle = 360.0_f32.to_radians() - loc.angle;
                     }
+                    false
                 } else {
-                    _ = commands.pop();
+                    true
                 }
             }
-            None => todo!(),
+            None => false,
+        };
+        if done {
+            _ = commands.pop();
         }
     }
 

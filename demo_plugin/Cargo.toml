@@ -10,4 +10,3 @@ crate_type = ["cdylib"]
 
 [dependencies]
 extism-pdk = "1.0.0-rc1"
-rand = "0.8.5"

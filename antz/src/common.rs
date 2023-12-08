@@ -18,6 +18,8 @@ pub enum Command {
     Turn(f32),
 }
 
+pub type CommandList = Vec<Command>;
+
 #[inline(always)]
 #[allow(unused)]
 pub fn map_range<
