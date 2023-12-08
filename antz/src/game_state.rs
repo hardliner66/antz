@@ -1,9 +1,12 @@
+use std::cell::RefCell;
+
 use crate::common::*;
 use crate::components::*;
 use crate::config::*;
 
-use notan::AppState;
+use extism::*;
 use notan::math::Vec2;
+use notan::AppState;
 
 #[derive(AppState)]
 pub struct GameState {
@@ -12,10 +15,12 @@ pub struct GameState {
     pub world: World,
     pub spawn: Vec2,
     pub rng: ThreadRng,
+    pub plugin: RefCell<Plugin>,
+    pub user_data: UserData<Vec<Command>>,
 }
 
 impl GameState {
-    pub fn new() -> GameState {
+    pub fn new(plugin: Plugin, user_data: UserData<Vec<Command>>) -> GameState {
         let config: Config = toml::from_str(
             &std::fs::read_to_string("resources/config.toml")
                 .unwrap_or_else(|_| include_str!("../resources/config.toml").to_string()),
@@ -42,6 +47,8 @@ impl GameState {
             tick: 0,
             rng,
             spawn: Vec2::new(start_x, start_y),
+            plugin: RefCell::new(plugin),
+            user_data,
         };
 
         game_state

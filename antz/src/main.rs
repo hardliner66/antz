@@ -15,20 +15,48 @@ use extism::*;
 use notan::draw::*;
 use notan::prelude::*;
 
+host_fn!(turn(user_data: Vec<Command>; value: f32) {
+    let data = user_data.get()?;
+    let mut data = data.lock().unwrap();
+    data.push(Command::Turn(value));
+    Ok(())
+});
+
+host_fn!(move_forward(user_data: Vec<Command>; value: u32) {
+    let data = user_data.get()?;
+    let mut data = data.lock().unwrap();
+    data.push(Command::Move(value));
+    Ok(())
+});
+
 fn setup(_gfx: &mut Graphics) -> GameState {
-    // let url =
-    //     Wasm::url("https://github.com/extism/plugins/releases/latest/download/count_vowels.wasm");
-    // let manifest = Manifest::new([url]);
-    // let mut plugin = extism::Plugin::new(&manifest, [], true).unwrap();
-    // let res = plugin.call::<&str, &str>("count_vowels", "Hello, world!").unwrap();
-    // println!("{}", res);
-    GameState::new()
+    let url = Wasm::file(
+        "C:/projects/gamedev/antz/target/wasm32-wasi/release/demo_plugin.wasm",
+    );
+    let manifest = Manifest::new([url]);
+    let command_store = UserData::new(Vec::new());
+    let plugin = extism::PluginBuilder::new(&manifest)
+        .with_wasi(true)
+        .with_function("turn", [PTR], [], command_store.clone(), turn)
+        .with_function("move_forward", [PTR], [], command_store.clone(), move_forward)
+        .build()
+        .unwrap();
+    GameState::new(plugin, command_store.clone())
 }
 
-fn update_ant(ant: &mut Ant) {
-    let mut rng = rand::thread_rng();
-    ant.turn(rng.gen_range(0.0..360.0));
-    ant.do_move(rng.gen_range(5..100));
+fn update_ant(state: &GameState, ant: &mut Ant) {
+    let mut plugin = state.plugin.borrow_mut();
+    (*plugin).call::<(), ()>("update", ()).unwrap();
+    for command in state.user_data.get().unwrap().lock().unwrap().iter() {
+        match command {
+            Command::Move(value) => {
+                ant.move_forward(*value);
+            }
+            Command::Turn(value) => {
+                ant.turn(*value);
+            }
+        }
+    }
 }
 
 fn update(app: &mut App, state: &mut GameState) {
@@ -50,7 +78,7 @@ fn update(app: &mut App, state: &mut GameState) {
 
     for (_id, ant) in &mut state.world.query::<&mut Ant>() {
         if ant.steps == 0 {
-            update_ant(ant);
+            update_ant(state, ant);
         }
     }
 

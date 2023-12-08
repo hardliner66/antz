@@ -4,7 +4,7 @@ use notan::math::{vec2, Vec2};
 
 pub struct Ant {
     pub angle: f32,
-    pub steps: i32,
+    pub steps: u32,
     pub energy: u32,
 }
 
@@ -21,7 +21,7 @@ impl Ant {
         self.angle = ((self.angle.to_degrees() + angle).rem_euclid(360.0)).to_radians();
     }
 
-    pub fn do_move(&mut self, steps: i32) {
+    pub fn move_forward(&mut self, steps: u32) {
         self.steps = steps;
     }
 }
