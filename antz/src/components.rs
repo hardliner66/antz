@@ -3,26 +3,14 @@ use crate::config::Config;
 use notan::math::{vec2, Vec2};
 
 pub struct Ant {
-    pub angle: f32,
-    pub steps: u32,
     pub energy: u32,
 }
 
 impl Ant {
     pub fn new(conf: &Config) -> Self {
         Ant {
-            angle: 0.0,
-            steps: 0,
             energy: conf.general.base_energy,
         }
-    }
-
-    pub fn turn(&mut self, angle: f32) {
-        self.angle = ((self.angle.to_degrees() + angle).rem_euclid(360.0)).to_radians();
-    }
-
-    pub fn move_forward(&mut self, steps: u32) {
-        self.steps = steps;
     }
 }
 
@@ -30,10 +18,19 @@ pub struct Apple;
 
 pub struct Sugar;
 
-pub struct Position(pub Vec2);
+pub struct Location {
+    pub pos: Vec2,
+    pub angle: f32,
+}
 
-impl Position {
+impl Location {
     pub fn new(x: f32, y: f32) -> Self {
-        Position(vec2(x, y))
+        Self::new_with_angle(x, y, 0.0)
+    }
+    pub fn new_with_angle(x: f32, y: f32, angle: f32) -> Self {
+        Location {
+            pos: vec2(x, y),
+            angle,
+        }
     }
 }

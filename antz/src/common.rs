@@ -12,6 +12,7 @@ pub const HEIGHT: f32 = 720.0;
 // pub const DESIRED_FPS: u32 = 60;
 pub const STEP_SIZE: f32 = 2.0;
 
+#[derive(Debug, Clone)]
 pub enum Command {
     Move(u32),
     Turn(f32),
