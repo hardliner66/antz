@@ -12,7 +12,10 @@ opt-level = 2
 [dependencies]
 anyhow = "1.0.75"
 extism = "^1.0.0-rc3"
+fern = "0.6.2"
 hecs = "0.10.4"
+humantime = "2.1.0"
+log = "0.4.20"
 notan = { version = "0.11.0", features = ["notan_egui", "egui", "serde", "drop_files"] }
 rand = "0.8.5"
 serde = { version="1.0.0", features=["derive"] }

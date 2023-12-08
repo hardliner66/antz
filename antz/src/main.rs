@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 //use std::{env, path};
+use std::time::SystemTime;
 
 mod common;
 mod components;
@@ -12,6 +13,7 @@ use components::*;
 use game_state::GameState;
 
 use extism::*;
+use log::{debug, error, info, trace, warn};
 use notan::draw::*;
 use notan::prelude::*;
 
@@ -218,8 +220,26 @@ fn draw(gfx: &mut Graphics, state: &mut GameState) {
     gfx.render(&draw);
 }
 
+fn setup_logger() -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {} {}] {}",
+                humantime::format_rfc3339_seconds(SystemTime::now()),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Error)
+        .chain(std::io::stdout())
+        .apply()?;
+    Ok(())
+}
+
 #[notan_main]
 fn main() -> Result<(), String> {
+    setup_logger().unwrap();
     // let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
     //     let mut path = path::PathBuf::from(manifest_dir);
     //     path.push("resources");
