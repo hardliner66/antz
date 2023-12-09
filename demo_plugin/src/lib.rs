@@ -1,3 +1,4 @@
+use antz_aux::OnNearFoodArgs;
 use extism_pdk::*;
 
 #[host_fn]
@@ -15,5 +16,17 @@ extern "ExtismHost" {
 pub unsafe fn on_idle() -> FnResult<()> {
     turn(rand_range(0.0, 360.0)?)?;
     move_forward(rand_range_uint(5, 100)?)?;
+    Ok(())
+}
+
+#[plugin_fn]
+pub unsafe fn on_near_sugar(Json(_args): Json<OnNearFoodArgs>) -> FnResult<()> {
+    info!("on_near_sugar called");
+    Ok(())
+}
+
+#[plugin_fn]
+pub unsafe fn on_near_apple(Json(_args): Json<OnNearFoodArgs>) -> FnResult<()> {
+    info!("on_near_apple called");
     Ok(())
 }

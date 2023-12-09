@@ -11,3 +11,4 @@ opt-level = 2
 
 [dependencies]
 extism-pdk = "1.0.0-rc1"
+antz-aux = { path = "../antz_aux" }

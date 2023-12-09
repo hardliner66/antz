@@ -1,21 +1,28 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::path::PathBuf;
 //use std::{env, path};
-use std::time::SystemTime;
 
 mod common;
 mod components;
 mod config;
 mod game_state;
 
+use antz_aux::AntState;
+use antz_aux::OnNearFoodArgs;
+
+use clap::Parser;
 use common::*;
 use components::*;
+use extism::convert::Json;
 use game_state::GameState;
 
 use extism::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use notan::draw::*;
 use notan::prelude::*;
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
 host_fn!(clear(user_data: Vec<Command>;) {
     let data = user_data.get()?;
@@ -63,12 +70,13 @@ host_fn!(move_forward(user_data: Vec<Command>; value: u32) {
 });
 
 fn setup(_gfx: &mut Graphics) -> GameState {
-    let url = Wasm::file("./target/wasm32-wasi/release/demo_plugin.wasm");
+    let Args { wasm_file } = Args::parse();
+    let url = Wasm::file(wasm_file);
     let manifest = Manifest::new([url]);
     let command_store = UserData::new(Vec::new());
     let rng = UserData::new(thread_rng());
     let plugin = extism::PluginBuilder::new(&manifest)
-        .with_wasi(true)
+        .with_wasi(false)
         .with_function("clear", [], [], command_store.clone(), clear)
         .with_function("turn", [PTR], [], command_store.clone(), turn)
         .with_function("rand", [], [PTR], rng.clone(), rand)
@@ -101,17 +109,72 @@ fn setup(_gfx: &mut Graphics) -> GameState {
 
 fn ant_on_idle(state: &GameState, commands: &mut Vec<Command>) {
     let mut plugin = state.plugin.borrow_mut();
+    if !plugin.function_exists("on_idle") {
+        info!("Ant does not implement on_idle");
+        return;
+    }
     (*plugin).call::<(), ()>("on_idle", ()).unwrap();
+    commands.extend(state.user_data.get().unwrap().lock().unwrap().clone());
+}
+
+fn ant_on_near_food(
+    state: &GameState,
+    ant_pos: &Position,
+    food_pos: &Position,
+    ant_state: AntState,
+    is_apple: bool,
+    commands: &mut Vec<Command>,
+) {
+    let distance = (**ant_pos).distance(**food_pos);
+    if distance > 5.0 {
+        return;
+    }
+    let function_name = if is_apple {
+        "on_near_apple"
+    } else {
+        "on_near_sugar"
+    };
+    let mut plugin = state.plugin.borrow_mut();
+    if !plugin.function_exists(function_name) {
+        info!("Ant does not implement {function_name}");
+        return;
+    }
+    let angle = (**ant_pos).angle_between(**food_pos);
+    (*plugin)
+        .call::<Json<OnNearFoodArgs>, ()>(
+            function_name,
+            Json(OnNearFoodArgs {
+                distance,
+                angle,
+                this: ant_state,
+            }),
+        )
+        .unwrap();
     commands.extend(state.user_data.get().unwrap().lock().unwrap().clone());
 }
 
 fn update(app: &mut App, state: &mut GameState) {
     state.tick += 1;
 
+    let mut to_delete = Vec::new();
+    for (id, (_, energy)) in &mut state.world.query::<(&Ant, &mut Energy)>() {
+        if **energy > 0 {
+            **energy -= 1;
+        } else {
+            to_delete.push(id);
+        }
+    }
+
+    to_delete
+        .iter()
+        .for_each(|id| state.world.despawn(*id).unwrap());
+
     if state.tick % 100 == 0 {
         state.world.spawn((
-            Ant::new(&state.config),
-            Location::new(state.spawn.x, state.spawn.y),
+            Ant,
+            Energy::new(&state.config),
+            Position::new(state.spawn.x, state.spawn.y),
+            Orientation(0.0),
             CommandList::new(),
         ));
     }
@@ -120,40 +183,41 @@ fn update(app: &mut App, state: &mut GameState) {
         let apple_x: f32 = state.rng.gen_range(0.0..WIDTH);
         let apple_y: f32 = state.rng.gen_range(0.0..HEIGHT);
 
-        state.world.spawn((Apple, Location::new(apple_x, apple_y)));
+        state.world.spawn((Apple, Position::new(apple_x, apple_y)));
     }
 
-    for (_id, (_ant, commands)) in &mut state.world.query::<(&mut Ant, &mut Vec<Command>)>() {
+    for (_id, (_ant, commands)) in &mut state.world.query::<(&Ant, &mut Vec<Command>)>() {
         if commands.is_empty() {
             ant_on_idle(state, commands);
         }
     }
 
-    for (_id, (_, loc, commands)) in &mut state
-        .world
-        .query::<(&mut Ant, &mut Location, &mut Vec<Command>)>()
+    for (_id, (_, pos, ori, commands)) in
+        &mut state
+            .world
+            .query::<(&Ant, &mut Position, &mut Orientation, &mut Vec<Command>)>()
     {
         let done = match commands.last_mut() {
             Some(Command::Turn(angle)) => {
-                loc.angle = ((loc.angle.to_degrees() + *angle).rem_euclid(360.0)).to_radians();
+                **ori = ((ori.to_degrees() + *angle).rem_euclid(360.0)).to_radians();
                 true
             }
             Some(Command::Move(steps)) => {
                 if *steps > 0 {
-                    let x = STEP_SIZE * loc.angle.cos();
-                    let y = STEP_SIZE * loc.angle.sin();
-                    loc.pos.x += x;
-                    loc.pos.y += y;
+                    let x = STEP_SIZE * ori.cos();
+                    let y = STEP_SIZE * ori.sin();
+                    pos.x += x;
+                    pos.y += y;
                     *steps -= 1;
 
-                    if loc.pos.x < 0.0 || loc.pos.x > WIDTH {
-                        loc.pos.x = loc.pos.x.clamp(0.0, WIDTH);
-                        loc.angle = 180.0_f32.to_radians() - loc.angle;
+                    if pos.x < 0.0 || pos.x > WIDTH {
+                        pos.x = pos.x.clamp(0.0, WIDTH);
+                        **ori = 180.0_f32.to_radians() - **ori;
                     }
 
-                    if loc.pos.y < 0.0 || loc.pos.y > HEIGHT {
-                        loc.pos.y = loc.pos.y.clamp(0.0, HEIGHT);
-                        loc.angle = 360.0_f32.to_radians() - loc.angle;
+                    if pos.y < 0.0 || pos.y > HEIGHT {
+                        pos.y = pos.y.clamp(0.0, HEIGHT);
+                        **ori = 360.0_f32.to_radians() - **ori;
                     }
                     false
                 } else {
@@ -167,18 +231,26 @@ fn update(app: &mut App, state: &mut GameState) {
         }
     }
 
-    let mut to_delete = Vec::new();
-    for (id, ant) in &mut state.world.query::<&mut Ant>() {
-        if ant.energy > 0 {
-            ant.energy -= 1;
-        } else {
-            to_delete.push(id);
+    for (_id, (_, ant_pos, energy, commands)) in
+        &mut state
+            .world
+            .query::<(&Ant, &Position, &Energy, &mut CommandList)>()
+    {
+        for (_id, (_, pos)) in &mut state.world.query::<(&Sugar, &Position)>() {
+            ant_on_near_food(
+                state,
+                ant_pos,
+                pos,
+                AntState::new(**energy),
+                false,
+                commands,
+            );
+        }
+
+        for (_id, (_, pos)) in &mut state.world.query::<(&Apple, &Position)>() {
+            ant_on_near_food(state, ant_pos, pos, AntState::new(**energy), true, commands);
         }
     }
-
-    to_delete
-        .iter()
-        .for_each(|id| state.world.despawn(*id).unwrap());
 
     if state.tick % 50 == 0 {
         let fps = app.timer.fps();
@@ -196,45 +268,56 @@ fn draw(gfx: &mut Graphics, state: &mut GameState) {
         .fill_color(Color::BLACK)
         .fill();
 
-    for (_id, (_, loc)) in &mut state.world.query::<(&Sugar, &Location)>() {
+    for (_id, (_, pos)) in &mut state.world.query::<(&Sugar, &Position)>() {
         draw.circle(10.0)
-            .position(loc.pos.x, loc.pos.y)
+            .position(pos.x, pos.y)
             .fill_color(Color::WHITE)
             .fill();
     }
 
-    for (_id, (_, loc)) in &mut state.world.query::<(&Apple, &Location)>() {
+    for (_id, (_, pos)) in &mut state.world.query::<(&Apple, &Position)>() {
         draw.circle(5.0)
-            .position(loc.pos.x, loc.pos.y)
+            .position(pos.x, pos.y)
             .fill_color(Color::from_rgb(112.0, 212.0, 0.0))
             .fill();
     }
 
-    for (_id, (_, loc)) in &mut state.world.query::<(&Ant, &Location)>() {
-        draw.ellipse((loc.pos.x, loc.pos.y), (4.0, 1.5))
+    for (_id, (_, pos, ori)) in &mut state.world.query::<(&Ant, &Position, &Orientation)>() {
+        draw.ellipse((pos.x, pos.y), (4.0, 1.5))
             .fill_color(Color::from_rgb(142.0, 178.0, 179.0))
             .fill()
-            .rotate_degrees(loc.angle);
+            .rotate_degrees(**ori);
     }
 
     gfx.render(&draw);
 }
 
-fn setup_logger() -> Result<(), fern::InitError> {
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{} {} {}] {}",
-                humantime::format_rfc3339_seconds(SystemTime::now()),
-                record.level(),
-                record.target(),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Error)
-        .chain(std::io::stdout())
-        .apply()?;
+fn setup_logger() -> anyhow::Result<()> {
+    let filter = EnvFilter::try_from_env("RUST_LOG")
+        .unwrap_or_default()
+        .add_directive(LevelFilter::INFO.into());
+    let subscriber = tracing_subscriber::fmt()
+        // Use a more compact, abbreviated log format
+        .pretty()
+        .with_timer(tracing_subscriber::fmt::time::uptime())
+        .with_env_filter(filter)
+        // Display source code file paths
+        .with_file(false)
+        // Display source code line numbers
+        .with_line_number(false)
+        // Display the thread ID an event was recorded on
+        .with_thread_ids(false)
+        // Don't display the event's target (module path)
+        .with_target(false)
+        // Build the subscriber
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)?;
     Ok(())
+}
+
+#[derive(Parser)]
+struct Args {
+    wasm_file: PathBuf,
 }
 
 #[notan_main]

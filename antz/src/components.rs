@@ -1,16 +1,15 @@
 use crate::config::Config;
 
+use derive_more::{Deref, DerefMut};
 use notan::math::{vec2, Vec2};
 
-pub struct Ant {
-    pub energy: u32,
-}
+pub struct Ant;
 
-impl Ant {
+#[derive(Deref, DerefMut)]
+pub struct Energy(pub u32);
+impl Energy {
     pub fn new(conf: &Config) -> Self {
-        Ant {
-            energy: conf.general.base_energy,
-        }
+        Self(conf.general.base_energy)
     }
 }
 
@@ -18,19 +17,17 @@ pub struct Apple;
 
 pub struct Sugar;
 
-pub struct Location {
-    pub pos: Vec2,
-    pub angle: f32,
+#[derive(Deref, DerefMut)]
+pub struct Amount(pub u32);
+
+#[derive(Deref, DerefMut)]
+pub struct Position(pub Vec2);
+
+impl Position {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self(vec2(x, y))
+    }
 }
 
-impl Location {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self::new_with_angle(x, y, 0.0)
-    }
-    pub fn new_with_angle(x: f32, y: f32, angle: f32) -> Self {
-        Location {
-            pos: vec2(x, y),
-            angle,
-        }
-    }
-}
+#[derive(Deref, DerefMut)]
+pub struct Orientation(pub f32);

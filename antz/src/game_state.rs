@@ -38,7 +38,7 @@ impl GameState {
             let sugar_x: f32 = rng.gen_range(0.0..WIDTH);
             let sugar_y: f32 = rng.gen_range(0.0..HEIGHT);
 
-            world.spawn((Sugar, Location::new(sugar_x, sugar_y)));
+            world.spawn((Sugar, Position::new(sugar_x, sugar_y)));
         }
 
         let game_state = GameState {

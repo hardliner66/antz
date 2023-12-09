@@ -2,3 +2,6 @@
 members = ["antz", "demo_plugin"]
 default-members = ["antz"]
 resolver = "2"
+
+[profile.dev.package."*"]
+opt-level = 2
