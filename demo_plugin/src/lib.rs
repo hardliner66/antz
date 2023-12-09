@@ -1,16 +1,6 @@
-use antz_aux::OnNearFoodArgs;
-use extism_pdk::*;
+use antz_aux::*;
 
-#[host_fn]
-extern "ExtismHost" {
-    fn clear();
-    fn rand() -> f32;
-    fn rand_range(min: f32, max_exclusive: f32) -> f32;
-    fn rand_range_int(min: i32, max_exclusive: i32) -> i32;
-    fn rand_range_uint(min: u32, max_exclusive: u32) -> u32;
-    fn turn(input: f32);
-    fn move_forward(input: u32);
-}
+init_host_functions!();
 
 #[plugin_fn]
 pub unsafe fn on_idle() -> FnResult<()> {
@@ -21,12 +11,16 @@ pub unsafe fn on_idle() -> FnResult<()> {
 
 #[plugin_fn]
 pub unsafe fn on_near_sugar(Json(_args): Json<OnNearFoodArgs>) -> FnResult<()> {
+    // turn_to(args.angle)?;
+    // move_forward(args.distance)?;
     info!("on_near_sugar called");
     Ok(())
 }
 
 #[plugin_fn]
 pub unsafe fn on_near_apple(Json(_args): Json<OnNearFoodArgs>) -> FnResult<()> {
+    // turn_to(args.angle)?;
+    // move_forward(args.distance)?;
     info!("on_near_apple called");
     Ok(())
 }

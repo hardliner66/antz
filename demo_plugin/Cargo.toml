@@ -6,9 +6,6 @@ edition = "2021"
 [lib]
 crate_type = ["cdylib"]
 
-[profile.dev.package."*"]
-opt-level = 2
-
 [dependencies]
 extism-pdk = "1.0.0-rc1"
 antz-aux = { path = "../antz_aux" }

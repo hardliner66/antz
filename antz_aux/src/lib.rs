@@ -1,3 +1,5 @@
+pub use extism_pdk;
+pub use extism_pdk::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,6 +16,23 @@ impl AntState {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OnNearFoodArgs {
     pub this: AntState,
-    pub distance: f32,
+    pub distance: u32,
     pub angle: f32,
+}
+
+#[macro_export]
+macro_rules! init_host_functions {
+    () => {
+        #[host_fn]
+        extern "ExtismHost" {
+            pub fn clear();
+            pub fn rand() -> f32;
+            pub fn rand_range(min: f32, max_exclusive: f32) -> f32;
+            pub fn rand_range_int(min: i32, max_exclusive: i32) -> i32;
+            pub fn rand_range_uint(min: u32, max_exclusive: u32) -> u32;
+            pub fn turn(input: f32);
+            pub fn turn_to(input: f32);
+            pub fn move_forward(input: u32);
+        }
+    };
 }

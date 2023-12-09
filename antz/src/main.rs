@@ -18,11 +18,10 @@ use extism::convert::Json;
 use game_state::GameState;
 
 use extism::*;
-use log::{debug, error, info, warn};
+use log::info;
 use notan::draw::*;
 use notan::prelude::*;
-use tracing_subscriber::filter::LevelFilter;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 host_fn!(clear(user_data: Vec<Command>;) {
     let data = user_data.get()?;
@@ -62,6 +61,13 @@ host_fn!(turn(user_data: Vec<Command>; value: f32) {
     Ok(())
 });
 
+host_fn!(turn_to(user_data: Vec<Command>; value: f32) {
+    let data = user_data.get()?;
+    let mut data = data.lock().unwrap();
+    data.push(Command::TurnTo(value));
+    Ok(())
+});
+
 host_fn!(move_forward(user_data: Vec<Command>; value: u32) {
     let data = user_data.get()?;
     let mut data = data.lock().unwrap();
@@ -79,6 +85,7 @@ fn setup(_gfx: &mut Graphics) -> GameState {
         .with_wasi(false)
         .with_function("clear", [], [], command_store.clone(), clear)
         .with_function("turn", [PTR], [], command_store.clone(), turn)
+        .with_function("turn_to", [PTR], [], command_store.clone(), turn_to)
         .with_function("rand", [], [PTR], rng.clone(), rand)
         .with_function("rand_range", [PTR, PTR], [PTR], rng.clone(), rand_range)
         .with_function(
@@ -125,10 +132,6 @@ fn ant_on_near_food(
     is_apple: bool,
     commands: &mut Vec<Command>,
 ) {
-    let distance = (**ant_pos).distance(**food_pos);
-    if distance > 5.0 {
-        return;
-    }
     let function_name = if is_apple {
         "on_near_apple"
     } else {
@@ -139,18 +142,34 @@ fn ant_on_near_food(
         info!("Ant does not implement {function_name}");
         return;
     }
-    let angle = (**ant_pos).angle_between(**food_pos);
+    let distance = (**ant_pos).distance(**food_pos);
+    let angle = (**ant_pos).angle_between(**food_pos).to_degrees();
     (*plugin)
         .call::<Json<OnNearFoodArgs>, ()>(
             function_name,
             Json(OnNearFoodArgs {
-                distance,
+                distance: distance as u32,
                 angle,
                 this: ant_state,
             }),
         )
         .unwrap();
-    commands.extend(state.user_data.get().unwrap().lock().unwrap().clone());
+    let user_data = state.user_data.get().unwrap();
+    let user_data = user_data.lock().unwrap();
+    if !user_data.is_empty() {
+        commands.clear();
+        commands.extend(user_data.clone());
+    }
+}
+
+enum FoodType {
+    Apple,
+    Sugar,
+}
+
+enum ComponentChange {
+    AddSeen(Entity, FoodType),
+    RemoveSeen(Entity, FoodType),
 }
 
 fn update(app: &mut App, state: &mut GameState) {
@@ -186,10 +205,70 @@ fn update(app: &mut App, state: &mut GameState) {
         state.world.spawn((Apple, Position::new(apple_x, apple_y)));
     }
 
-    for (_id, (_ant, commands)) in &mut state.world.query::<(&Ant, &mut Vec<Command>)>() {
+    for (_id, commands) in &mut state.world.query::<With<&mut Vec<Command>, &Ant>>() {
         if commands.is_empty() {
             ant_on_idle(state, commands);
         }
+    }
+
+    let mut component_changes = Vec::new();
+    for (id, (ant_pos, energy, commands)) in &mut state
+        .world
+        .query::<With<(&Position, &Energy, &mut CommandList), &Ant>>()
+    {
+        for (_id, (pos, or)) in &mut state.world.query::<(&Position, Or<&Sugar, &Apple>)>() {
+            let is_apple = or.right().is_some();
+            let has_food_seen = if is_apple {
+                state.world.entity(id).unwrap().has::<Seen<Apple>>()
+            } else {
+                state.world.entity(id).unwrap().has::<Seen<Sugar>>()
+            };
+            let distance = (**ant_pos).distance(**pos);
+            if has_food_seen && distance > 10.0 {
+                component_changes.push(ComponentChange::RemoveSeen(
+                    id,
+                    if is_apple {
+                        FoodType::Apple
+                    } else {
+                        FoodType::Sugar
+                    },
+                ));
+            } else if !has_food_seen && distance <= 10.0 {
+                ant_on_near_food(
+                    state,
+                    ant_pos,
+                    pos,
+                    AntState::new(**energy),
+                    is_apple,
+                    commands,
+                );
+                component_changes.push(ComponentChange::AddSeen(
+                    id,
+                    if is_apple {
+                        FoodType::Apple
+                    } else {
+                        FoodType::Sugar
+                    },
+                ));
+            }
+        }
+    }
+
+    for change in component_changes {
+        match change {
+            ComponentChange::AddSeen(id, FoodType::Apple) => {
+                state.world.insert(id, (Seen::<Apple>::default(),)).unwrap()
+            }
+            ComponentChange::AddSeen(id, FoodType::Sugar) => {
+                state.world.insert(id, (Seen::<Sugar>::default(),)).unwrap()
+            }
+            ComponentChange::RemoveSeen(id, FoodType::Apple) => {
+                _ = state.world.remove_one::<Seen<Apple>>(id)
+            }
+            ComponentChange::RemoveSeen(id, FoodType::Sugar) => {
+                _ = state.world.remove_one::<Seen<Sugar>>(id)
+            }
+        };
     }
 
     for (_id, (_, pos, ori, commands)) in
@@ -200,6 +279,10 @@ fn update(app: &mut App, state: &mut GameState) {
         let done = match commands.last_mut() {
             Some(Command::Turn(angle)) => {
                 **ori = ((ori.to_degrees() + *angle).rem_euclid(360.0)).to_radians();
+                true
+            }
+            Some(Command::TurnTo(angle)) => {
+                **ori = (*angle).rem_euclid(360.0).to_radians();
                 true
             }
             Some(Command::Move(steps)) => {
@@ -231,27 +314,6 @@ fn update(app: &mut App, state: &mut GameState) {
         }
     }
 
-    for (_id, (_, ant_pos, energy, commands)) in
-        &mut state
-            .world
-            .query::<(&Ant, &Position, &Energy, &mut CommandList)>()
-    {
-        for (_id, (_, pos)) in &mut state.world.query::<(&Sugar, &Position)>() {
-            ant_on_near_food(
-                state,
-                ant_pos,
-                pos,
-                AntState::new(**energy),
-                false,
-                commands,
-            );
-        }
-
-        for (_id, (_, pos)) in &mut state.world.query::<(&Apple, &Position)>() {
-            ant_on_near_food(state, ant_pos, pos, AntState::new(**energy), true, commands);
-        }
-    }
-
     if state.tick % 50 == 0 {
         let fps = app.timer.fps();
         app.window().set_title(&format!("{:.0} FPS", fps))
@@ -273,6 +335,10 @@ fn draw(gfx: &mut Graphics, state: &mut GameState) {
             .position(pos.x, pos.y)
             .fill_color(Color::WHITE)
             .fill();
+        draw.circle(1.0)
+            .position(pos.x, pos.y)
+            .fill_color(Color::BLACK)
+            .fill();
     }
 
     for (_id, (_, pos)) in &mut state.world.query::<(&Apple, &Position)>() {
@@ -280,13 +346,21 @@ fn draw(gfx: &mut Graphics, state: &mut GameState) {
             .position(pos.x, pos.y)
             .fill_color(Color::from_rgb(112.0, 212.0, 0.0))
             .fill();
+        draw.circle(1.0)
+            .position(pos.x, pos.y)
+            .fill_color(Color::BLACK)
+            .fill();
     }
 
     for (_id, (_, pos, ori)) in &mut state.world.query::<(&Ant, &Position, &Orientation)>() {
         draw.ellipse((pos.x, pos.y), (4.0, 1.5))
             .fill_color(Color::from_rgb(142.0, 178.0, 179.0))
             .fill()
-            .rotate_degrees(**ori);
+            .rotate_degrees((**ori).to_degrees());
+        draw.circle(10.0)
+            .position(pos.x, pos.y)
+            .stroke_color(Color::BLACK)
+            .stroke(1.0);
     }
 
     gfx.render(&draw);
@@ -335,5 +409,6 @@ fn main() -> Result<(), String> {
         .update(update)
         .draw(draw)
         .add_config(DrawConfig)
+        .add_config(WindowConfig::default().set_vsync(true))
         .build()
 }

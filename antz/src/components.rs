@@ -1,11 +1,14 @@
+use std::marker::PhantomData;
+
 use crate::config::Config;
 
 use derive_more::{Deref, DerefMut};
 use notan::math::{vec2, Vec2};
 
+#[derive(Debug, Default, Clone)]
 pub struct Ant;
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Energy(pub u32);
 impl Energy {
     pub fn new(conf: &Config) -> Self {
@@ -13,14 +16,17 @@ impl Energy {
     }
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct Apple;
-
+#[derive(Debug, Default, Clone)]
 pub struct Sugar;
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Default, Clone)]
+pub struct Seen<T>(PhantomData<T>);
+#[derive(Debug, Deref, DerefMut)]
 pub struct Amount(pub u32);
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Position(pub Vec2);
 
 impl Position {
@@ -29,5 +35,5 @@ impl Position {
     }
 }
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Orientation(pub f32);

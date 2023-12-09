@@ -16,6 +16,7 @@ pub const STEP_SIZE: f32 = 2.0;
 pub enum Command {
     Move(u32),
     Turn(f32),
+    TurnTo(f32),
 }
 
 pub type CommandList = Vec<Command>;
