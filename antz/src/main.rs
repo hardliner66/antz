@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
-//use std::{env, path};
 
 mod common;
 mod components;
@@ -76,7 +75,7 @@ host_fn!(move_forward(user_data: Vec<Command>; value: u32) {
 });
 
 fn setup(_gfx: &mut Graphics) -> GameState {
-    let Args { wasm_file } = Args::parse();
+    let Args { wasm_file } = dbg!(Args::parse());
     let url = Wasm::file(wasm_file);
     let manifest = Manifest::new([url]);
     let command_store = UserData::new(Vec::new());
@@ -389,7 +388,7 @@ fn setup_logger() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 struct Args {
     wasm_file: PathBuf,
 }
